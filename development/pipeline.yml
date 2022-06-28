@@ -1,0 +1,29 @@
+resource_types:
+- name: repo
+  type: registry-image
+  source:
+    # modify this to match the IP addr from step 4
+    repository: 172.20.0.4:5000/mkorpershoek/repo-resource
+
+resources:
+- name: aosp-tools
+  type: repo
+  check_every: 2h
+  source:
+    url: https://android.googlesource.com/tools/manifest
+    revision: fetch_artifact-dev
+
+jobs:
+- name: hello-world-job
+  plan:
+  - get: aosp-kernel
+  - task: hello-world-task
+    config:
+      platform: linux
+      image_resource:
+        type: registry-image
+        source:
+          repository: busybox
+      run:
+        path: echo
+        args: ["Hello world!"]
