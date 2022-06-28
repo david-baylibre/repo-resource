@@ -31,3 +31,27 @@ resources:
     branch: master
     name: default.xml
 ```
+
+## Contributing/development
+
+### Rebuilding the docker image
+
+```
+make
+```
+
+### Publish to docker hub
+
+```
+make push
+```
+
+### Unit testing
+
+Use `tox` for running the unit tests:
+```
+tox
+```
+See the [tox wiki](https://tox.wiki/en/latest/) for more details
+
+Note that it's also possible to run them without `tox` using `make test`
