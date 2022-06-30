@@ -93,12 +93,11 @@ https://concourse-ci.org/getting-started.html
 4. Get the IP address of your `registry` container. This is needed because the `concourse/concourse`
    container seems unable to lookup by hostname address:
    ```
-   docker run --network dev-instance_default -it ubuntu /bin/bash
-   apt update && apt install -y inetutils-ping
-   ping registry
-   # PING registry (172.20.0.4): 56 data bytes
+   registry_container_id=$(docker ps --no-trunc --filter "name=registry" --format="{{.ID}}")
+   docker inspect --format='{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' ${registry_container_id}
    ```
-   Note the ip address (`172.20.0.4` in this example).
+
+   Note the IP address (`172.20.0.4` in this example).
 
 5. Publish a development job with `fly` using the [development `pipeline.yml`](./development/pipeline.yml)
    ```
@@ -106,3 +105,5 @@ https://concourse-ci.org/getting-started.html
    fly -t tutorial unpause-pipeline -p development
    fly -t tutorial check-resource -r development/aosp-tools
    ```
+
+   Note: eventually, you'll have to patch `development/pipeline.yml` with the IP address from step 4.
