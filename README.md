@@ -101,5 +101,5 @@ https://concourse-ci.org/getting-started.html
    ```
    fly -t tutorial set-pipeline -p development -c development/pipeline.yml
    fly -t tutorial unpause-pipeline -p development
-   fly -t tutorial check-resource -r development/aosp-kernel
+   fly -t tutorial check-resource -r development/aosp-tools
    ```
