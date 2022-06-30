@@ -78,7 +78,10 @@ https://concourse-ci.org/getting-started.html
 
 2. Start your local docker registry:
    ```
-   docker run --network dev-instance_default -d -p 5000:5000 --name registry registry:2
+   # retrieve the concourse container's network name
+   container_name=$(docker ps --filter 'ancestor=concourse/concourse' --format "{{.Names}}")
+   network_name=$(docker container inspect $name -f "{{.HostConfig.NetworkMode}}" $container_name)
+   docker run --network ${network_name} -d -p 5000:5000 --name registry registry:2
    ```
    See https://www.docker.com/blog/how-to-use-your-own-registry-2/ for more information
 
