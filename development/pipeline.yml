@@ -16,7 +16,7 @@ resources:
 jobs:
 - name: hello-world-job
   plan:
-  - get: aosp-kernel
+  - get: aosp-tools
   - task: hello-world-task
     config:
       platform: linux
