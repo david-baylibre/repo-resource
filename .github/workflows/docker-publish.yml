@@ -20,4 +20,4 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: makohoek/repo-resource:latest
+          tags: mkorpershoek/repo-resource:latest
