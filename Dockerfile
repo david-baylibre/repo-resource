@@ -1,7 +1,7 @@
 FROM python:3-slim
 
 RUN apt update \
- && apt install -y git \
+ && apt install -y git procps \
  && apt upgrade -y \
  && apt autoremove \
  && rm -rf /var/lib/apt/lists/*
