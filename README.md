@@ -30,6 +30,9 @@ Track changes in a [repo](https://gerrit.googlesource.com/git-repo/+/master/#rep
 * `jobs`: *Optional.* number of jobs to run in parallel (default: 0; based on number of CPU cores)
    Reduce this if you observe network errors.
 
+* `check_jobs`: *Optional.* number of jobs to run in parallel in the check step (default: jobs\*2,
+  2 if jobs is undefined.
+
 ### Example
 
 Resource configuration for a public project using repo (Android)

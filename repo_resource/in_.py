@@ -33,13 +33,19 @@ def in_(instream, dest_dir='.'):
     config = common.source_config_from_payload(payload)
     requested_version = common.Version(payload['version']['version'])
 
+    standard_requested_version = common.Version(payload['version']['version']).standard()
+
+    standard_versions = []
+    current_version = None
+    for v in payload.get('versions', []):
+        standard_versions.append(common.Version(v['version']).standard())
+
     if config.private_key != '_invalid':
         common.add_private_key_to_agent(config.private_key)
 
     try:
-        repo = common.Repo(workdir=Path(dest_dir))
-
-        repo.init(config.url, config.revision, config.name, config.depth)
+        repo = common.Repo(config.url, config.revision, config.name, config.depth, workdir=Path(dest_dir))
+        repo.init()
         repo.sync(requested_version, config.jobs)
         fetched_version = repo.currentVersion()
     except Exception as e:
@@ -49,15 +55,12 @@ def in_(instream, dest_dir='.'):
         if config.private_key != '_invalid':
             common.remove_private_key_from_agent()
 
-    if fetched_version != requested_version:
-        raise RuntimeError('Could not fetch requested version')
-
     # save a copy of the manifest alongside the sources
     repo.save_manifest('.repo_manifest.xml')
 
     metadata = repo.metadata()
 
-    return {"version": {"version": str(fetched_version)},
+    return {"version": {"version": str(requested_version)},
             "metadata": metadata}
 
 
