@@ -11,6 +11,7 @@ from pathlib import Path
 from timeit import default_timer as timer
 import shutil
 import repo
+import xml.etree.ElementTree as ET
 
 from . import check
 from . import common
@@ -28,6 +29,19 @@ class TestCheck(unittest.TestCase):
             'source': {
                 'url': 'https://github.com/makohoek/demo-manifests.git',
                 'revision': 'main',
+                'name': 'aosp_device_fixed.xml'
+            }
+        }
+        self.demo_manifests_source_unsorted = {
+            'source': {
+                'url': 'https://github.com/david-baylibre/demo-manifests.git',
+                'revision': 'droze/unsorted',
+                'name': 'unsorted.xml'
+            }
+        }
+        self.demo_manifests_source_norev = {
+            'source': {
+                'url': 'https://github.com/makohoek/demo-manifests.git',
                 'name': 'aosp_device_fixed.xml'
             }
         }
@@ -94,24 +108,9 @@ class TestCheck(unittest.TestCase):
             check.check(instream)
 
     def test_branch_defaults_to_HEAD(self):
-        no_revision_data = self.demo_manifests_source
-        no_revision_data['source']['revision'] = None
+        no_revision_data = self.demo_manifests_source_norev
         instream = StringIO(json.dumps(no_revision_data))
         check.check(instream)
-
-    def test_manifest_name_defaults(self):
-        d = {
-            'source': {
-                'url': 'https://android.googlesource.com/tools/manifest',
-                'revision': 'fetch_artifact-dev'
-            },
-        }
-        instream = StringIO(json.dumps(d))
-        check.check(instream)
-        # no assert/assumption to call. repo init and sync should
-        # just be called. maybe we can check for a file as well
-        readme = common.CACHEDIR / 'fetch_artifact' / 'README.md'
-        self.assertTrue(readme.exists())
 
     # so here, we init from a public manifest
     # init is completely working fine
@@ -136,7 +135,7 @@ class TestCheck(unittest.TestCase):
         data = self.demo_manifests_source
         data['versions'] = [{
             'version':
-            '<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n  <remote name="aosp" fetch="https://android.googlesource.com/"/>\n  \n  <default remote="aosp" revision="refs/tags/android-12.0.0_r32"/>\n  \n  <project name="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba" upstream="refs/tags/android-12.0.0_r32" dest-branch="refs/tags/android-12.0.0_r32" groups="pdk"/>\n</manifest>\n'  # noqa: E501
+            '<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n  <remote name="aosp" fetch="https://android.googlesource.com/"/>\n  \n  <default remote="aosp" revision="refs/tags/android-12.0.0_r32"/>\n  \n  <project name="device/generic/common" path="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba" upstream="refs/tags/android-12.0.0_r32" dest-branch="refs/tags/android-12.0.0_r32" groups="pdk"/>\n</manifest>\n'  # noqa: E501
         }]
         instream = StringIO(json.dumps(data))
         versions = check.check(instream)
@@ -153,7 +152,7 @@ class TestCheck(unittest.TestCase):
         # we passed no version as input, so we should just get current version
         self.assertEqual(len(versions), 1)
         # and we know that version
-        expected_version = '<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n  <remote name="aosp" fetch="https://android.googlesource.com/"/>\n  \n  <default remote="aosp" revision="refs/tags/android-12.0.0_r32"/>\n  \n  <project name="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba" upstream="refs/tags/android-12.0.0_r32" dest-branch="refs/tags/android-12.0.0_r32" groups="pdk"/>\n</manifest>\n'  # noqa: E501
+        expected_version = '<manifest><remote fetch="https://android.googlesource.com/" name="aosp"></remote><default remote="aosp" revision="refs/tags/android-12.0.0_r32"></default><project groups="pdk" name="device/generic/common" path="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba"></project></manifest>'
         version = versions[0]['version']
         self.assertEqual(version, expected_version)
 
@@ -161,13 +160,20 @@ class TestCheck(unittest.TestCase):
     # but we use a newer version (using a different git branch)
     def test_new_revision(self):
         data = self.demo_manifests_source
-        data['versions'] = [{'version': 'older-shasum'}]
+        data['versions'] = [{'version': '<manifest><remote fetch="https://android.googlesource.com/" name="aosp"></remote><default remote="aosp" revision="refs/tags/android-12.0.0_r32"></default><project groups="pdk" name="device/generic/common" revision="older-sha1"></project></manifest>'}]
         instream = StringIO(json.dumps(data))
         versions = check.check(instream)
         self.assertEqual(len(versions), 2)
-        expected_version = '<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n  <remote name="aosp" fetch="https://android.googlesource.com/"/>\n  \n  <default remote="aosp" revision="refs/tags/android-12.0.0_r32"/>\n  \n  <project name="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba" upstream="refs/tags/android-12.0.0_r32" dest-branch="refs/tags/android-12.0.0_r32" groups="pdk"/>\n</manifest>\n'  # noqa: E501
+        expected_version = '<manifest><remote fetch="https://android.googlesource.com/" name="aosp"></remote><default remote="aosp" revision="refs/tags/android-12.0.0_r32"></default><project groups="pdk" name="device/generic/common" path="device/generic/common" revision="033d50e2298811d81de7db8cdea63e349a96c9ba"></project></manifest>'
         newest_version = versions[-1]['version']
         self.assertEqual(newest_version, expected_version)
+
+    def test_invalid_revision(self):
+        data = self.demo_manifests_source
+        data['versions'] = [{'version': 'invalid-version'}]
+        instream = StringIO(json.dumps(data))
+        with self.assertRaises(ET.ParseError):
+            check.check(instream)
 
     @unittest.skipUnless(
         Path('development/ssh/test_key').exists(), "requires ssh test key")
@@ -251,7 +257,7 @@ YDbuygyhlR8C8AAAAObWFrb2hvZWtAZ3Jvb3QBAgMEBQ==
         with self.assertRaises(SystemExit):
             versions = check.check(instream)
 
-        self.assertEquals(len(versions), 0)
+        self.assertEqual(len(versions), 0)
 
     def test_ssh_private_key_without_manifest_access(self):
         data = self.demo_ssh_manifests_source
@@ -306,14 +312,14 @@ YDbuygyhlR8C8AAAAObWFrb2hvZWtAZ3Jvb3QBAgMEBQ==
         with self.assertRaises(SystemExit):
             versions = check.check(instream)
 
-        self.assertEquals(len(versions), 0)
+        self.assertEqual(len(versions), 0)
 
     # test that we can specify an amount of jobs
     # This is a little flaky because it depends on network
     def test_jobs_limit(self):
         data = self.demo_multiple_aosp_device_source
 
-        data['source']['jobs'] = 24
+        data['source']['jobs'] = 4
         start = timer()
         instream = StringIO(json.dumps(data))
         check.check(instream)

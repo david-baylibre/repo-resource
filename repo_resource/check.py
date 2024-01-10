@@ -18,6 +18,7 @@ import sys
 
 from repo_resource import common
 
+DEFAULT_CHECK_JOBS = 2
 
 def check(instream) -> list:
     """Checks a json formatted IOstream for new versions
@@ -33,13 +34,21 @@ def check(instream) -> list:
 
     config = common.source_config_from_payload(payload)
 
+    standard_versions = []
+    current_version = None
+    for v in payload.get('versions', []):
+        standard_versions.append(common.Version(v['version']).standard())
+
     if config.private_key != '_invalid':
         common.add_private_key_to_agent(config.private_key)
 
+    jobs = config.jobs
+    check_jobs = config.check_jobs or jobs*2 or DEFAULT_CHECK_JOBS
+
     try:
-        repo = common.Repo()
-        repo.init(config.url, config.revision, config.name, config.depth)
-        repo.sync(jobs=config.jobs)
+        repo = common.Repo(config.url, config.revision, config.name, config.depth)
+        repo.init()
+        repo.update_manifest(jobs=check_jobs)
         version = repo.currentVersion()
     except Exception as e:
         raise e
@@ -48,11 +57,9 @@ def check(instream) -> list:
         if config.private_key != '_invalid':
             common.remove_private_key_from_agent()
 
-    new_version = {'version': str(version)}
-
     versions = payload.get('versions', [])
-    if versions.count(new_version) == 0:
-        versions.append(new_version)
+    if version.standard() not in standard_versions:
+        versions.append({'version': str(version)})
 
     return versions
 

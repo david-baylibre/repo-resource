@@ -4,11 +4,13 @@
 # Copyright 2022 (c) BayLibre, SAS
 # Author: Mattijs Korpershoek <mkorpershoek@baylibre.com>
 
+import os
 import json
 from io import StringIO
 import shutil
 import unittest
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import repo
 
@@ -16,10 +18,10 @@ from . import check
 from . import common
 from . import in_
 
-
 class TestIn(unittest.TestCase):
 
     def setUp(self):
+        os.chdir('/root')
         self.demo_manifests_source = {
             'source': {
                 'url': 'https://github.com/makohoek/demo-manifests.git',
@@ -40,11 +42,18 @@ class TestIn(unittest.TestCase):
         if p.exists():
             shutil.rmtree(p)
 
-    def test_fails_on_invalid_version(self):
+    def test_fails_on_invalid_xml_in_version(self):
         data = self.demo_manifests_source
         data['version'] = {'version': 'invalid-version'}
         instream = StringIO(json.dumps(data))
-        with self.assertRaises(repo.error.GitError):
+        with self.assertRaises(ET.ParseError):
+            in_.in_(instream, str(common.CACHEDIR))
+
+    def test_fails_on_invalid_version(self):
+        data = self.demo_manifests_source
+        data['version'] = {'version': '<manifest></manifest>'}
+        instream = StringIO(json.dumps(data))
+        with self.assertRaises(SystemExit):
             in_.in_(instream, str(common.CACHEDIR))
 
     def test_dest_dir_is_created(self):
@@ -68,8 +77,7 @@ class TestIn(unittest.TestCase):
 
         instream = StringIO(json.dumps(data))
         fetched_version = in_.in_(instream, str(common.CACHEDIR))
-
-        self.assertEquals(fetched_version['version'], data['version'])
+        self.assertEqual(common.Version(fetched_version['version']['version']).standard(), common.Version(data['version']['version']).standard())
 
     def test_get_metadata(self):
         data = self.demo_manifests_source
@@ -82,8 +90,8 @@ class TestIn(unittest.TestCase):
         expected_project = 'device/generic/common'
         expected_revision = '033d50e2298811d81de7db8cdea63e349a96c9ba'
 
-        self.assertEquals(result['metadata'][0]['name'], expected_project)
-        self.assertEquals(result['metadata'][0]['value'], expected_revision)
+        self.assertEqual(result['metadata'][0]['name'], expected_project)
+        self.assertEqual(result['metadata'][0]['value'], expected_revision)
 
     @unittest.skipUnless(
         Path('development/ssh/test_key').exists(), "requires ssh test key")
@@ -115,4 +123,4 @@ class TestIn(unittest.TestCase):
             common.CACHEDIR / '.repo_manifest.xml')
         expected_manifest_version = common.Version(data['version']['version'])
 
-        self.assertEquals(saved_manifest_version, expected_manifest_version)
+        self.assertEqual(saved_manifest_version, expected_manifest_version)
