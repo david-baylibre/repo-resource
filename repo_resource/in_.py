@@ -37,9 +37,9 @@ def in_(instream, dest_dir='.'):
         common.add_private_key_to_agent(config.private_key)
 
     try:
-        repo = common.Repo(workdir=Path(dest_dir))
-
-        repo.init(config.url, config.revision, config.name, config.depth)
+        repo = common.Repo(config.url, config.revision,
+                           config.name, config.depth, workdir=Path(dest_dir))
+        repo.init()
         repo.sync(requested_version, config.jobs)
         fetched_version = repo.currentVersion()
     except Exception as e:
