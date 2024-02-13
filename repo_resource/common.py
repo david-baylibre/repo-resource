@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import warnings
+import re
 
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -76,8 +77,10 @@ def source_config_from_payload(payload):
     p = SourceConfiguration(**payload['source'])
     source_url = urlparse(p.url)
 
-    if source_url.netloc == 'gitlab.com' and \
-       (source_url.scheme == 'http' or source_url.scheme == 'https'):
+    if (
+        source_url.netloc == 'gitlab.com' and
+        re.fullmatch('https?', source_url.scheme)
+       ):
         if not source_url.path.endswith('.git'):
             raise RuntimeError('gitlab http(s) urls must end with .git')
 
