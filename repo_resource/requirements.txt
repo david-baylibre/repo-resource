@@ -1,2 +1,2 @@
-gitrepo==2.31.1
+gitrepo==2.32.2
 ssh-agent-setup==2.0.1
