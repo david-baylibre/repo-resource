@@ -124,9 +124,16 @@ class Repo:
     such as init/sync and manifest
     """
 
-    def __init__(self, workdir=CACHEDIR):
+    def __init__(self, url, revision='HEAD', name='default.xml',
+                 depth=-1, workdir=CACHEDIR):
         self.__workdir = workdir
         self.__oldpwd = None
+        self.__url = url
+        self.__revision = revision
+        self.__name = name
+        self.__depth = depth
+        self.__version: Version = None
+        self.__remote = {}
         workdir.mkdir(parents=True, exist_ok=True)
 
         # gitrepo from https://github.com/grouperenault/gitrepo
@@ -148,7 +155,7 @@ class Repo:
     def __restore_oldpwd(self):
         os.chdir(self.__oldpwd)
 
-    def init(self, url, revision='HEAD', name='default.xml', depth=-1):
+    def init(self):
         self.__change_to_workdir()
         try:
             # Google's repo prints a lot of information to stdout.
@@ -156,17 +163,19 @@ class Repo:
             # https://concourse-ci.org/implementing-resource-types.html#implementing-resource-types
             with redirect_stdout(sys.stderr):
                 repo_cmd = [
-                    '--no-pager', 'init', '--quiet', '--manifest-url', url,
-                    '--manifest-name', name,
-                    '--no-tags',
+                    '--no-pager', 'init', '--quiet', '--manifest-url',
+                    self.__url, '--manifest-name',
+                    self.__name, '--no-tags',
                 ]
-                if depth > 0:
-                    repo_cmd.append('--depth={}'.format(depth))
+                if self.__depth > 0:
+                    repo_cmd.append('--depth={}'.format(self.__depth))
 
-                if revision is not None:
-                    repo_cmd.append('--manifest-branch={}'.format(revision))
+                if self.__revision is not None:
+                    repo_cmd.append(
+                        '--manifest-branch={}'.format(self.__revision)
+                    )
 
-                print('Downloading manifest from {}'.format(url))
+                print('Downloading manifest from {}'.format(self.__url))
                 repo._Main(repo_cmd)
                 print('repo has been initialized in {}'.format(self.__workdir))
 

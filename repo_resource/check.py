@@ -37,8 +37,11 @@ def check(instream) -> list:
         common.add_private_key_to_agent(config.private_key)
 
     try:
-        repo = common.Repo()
-        repo.init(config.url, config.revision, config.name, config.depth)
+        repo = common.Repo(config.url,
+                           config.revision,
+                           config.name,
+                           config.depth)
+        repo.init()
         repo.sync(jobs=config.jobs)
         version = repo.currentVersion()
     except Exception as e:
