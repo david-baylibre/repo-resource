@@ -10,15 +10,12 @@ import shutil
 import unittest
 from pathlib import Path
 
-import repo
-
 from . import check
 from . import common
 from . import in_
 
 
 class TestIn(unittest.TestCase):
-
     def setUp(self):
         self.demo_manifests_source = {
             'source': {

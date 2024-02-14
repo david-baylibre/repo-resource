@@ -160,7 +160,7 @@ class Repo:
         try:
             # Google's repo prints a lot of information to stdout.
             # Concourse expects every logs to be emitted to stderr:
-            # https://concourse-ci.org/implementing-resource-types.html#implementing-resource-types
+            # https://concourse-ci.org/implementing-resource-types.html#implementing-resource-types  # noqa: E501
             with redirect_stdout(sys.stderr):
                 repo_cmd = [
                     '--no-pager', 'init', '--quiet', '--manifest-url',
