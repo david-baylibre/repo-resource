@@ -31,6 +31,12 @@ class TestCheck(unittest.TestCase):
                 'name': 'aosp_device_fixed.xml'
             }
         }
+        self.demo_manifests_source_norev = {
+            'source': {
+                'url': 'https://github.com/makohoek/demo-manifests.git',
+                'name': 'aosp_device_fixed.xml'
+            }
+        }
         self.demo_ssh_manifests_source = {
             'source': {
                 'url': 'https://github.com/makohoek/demo-manifests.git',
@@ -94,8 +100,7 @@ class TestCheck(unittest.TestCase):
             check.check(instream)
 
     def test_branch_defaults_to_HEAD(self):
-        no_revision_data = self.demo_manifests_source
-        no_revision_data['source']['revision'] = None
+        no_revision_data = self.demo_manifests_source_norev
         instream = StringIO(json.dumps(no_revision_data))
         check.check(instream)
 
