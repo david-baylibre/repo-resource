@@ -12,18 +12,41 @@ import os
 import sys
 import tempfile
 import warnings
+import git
 import re
+import xml.etree.ElementTree as ET
 
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import urlparse
+from multiprocessing import Pool
 
 import ssh_agent_setup
 from repo import manifest_xml
 from repo import main as repo
 
+
+DEFAULT_CHECK_JOBS = 2
 CACHEDIR = Path('/tmp/repo-resource-cache')
+SHA1_PATTERN = re.compile(r'^[0-9a-f]{40}$')
+EXCLUDE_ATTRS = {'dest-branch', 'upstream'}
+# Elements available at
+# https://gerrit.googlesource.com/git-repo/+/master/docs/manifest-format.md
+TAGS = [
+  'remote',
+  'default',
+  'manifest-server',
+  'project',
+  'extend-project',
+  'annotation',
+  'copyfile',
+  'linkfile',
+  'remove-project',
+  'include',
+  'superproject',
+  'contactinfo'
+]
 
 
 def add_private_key_to_agent(private_key: str):
@@ -57,6 +80,43 @@ def remove_private_key_from_agent():
     atexit.unregister(ssh_agent_setup._kill_agent)
 
 
+def is_sha1(s):
+    return re.match(SHA1_PATTERN, s)
+
+
+def multi_run_wrapper(args):
+    return getRevision(*args)
+
+
+def getRevision(remote, remoteUrl, project, branch):
+    """
+    Get latest commit sha1 for revision
+    with git ls-remote command for each project
+    without downloading the whole repo
+    """
+    # v1.0^{} is the commit referring to tag v1.0
+    # git ls-remote returns the tag sha1 if left as is
+    if branch.startswith('refs/tags'):
+        branch += '^{}'
+    try:
+        with redirect_stdout(sys.stderr):
+            # return tuple (remote/project, revision)
+            print('Fetching revision for {}/{}...'.format(remote, project))
+            if is_sha1(branch):
+                return (remote + '/' + project, branch)
+            g = git.cmd.Git()
+            url, revision = (
+                remote + '/' + project,
+                g.ls_remote(remoteUrl+'/'+project, branch).split()[0]
+            )
+            print('{}: {}'.format(url, revision))
+            return (url, revision)
+    except Exception as e:
+        with redirect_stdout(sys.stderr):
+            print('Cannot fetch project {}/{}'.format(remoteUrl, project))
+            print(e)
+
+
 class SourceConfiguration(NamedTuple):
     """
     Supported source configuration items when configuring
@@ -68,6 +128,7 @@ class SourceConfiguration(NamedTuple):
     private_key: str = '_invalid'
     depth: int = -1
     jobs: int = 0
+    check_jobs: int = DEFAULT_CHECK_JOBS
 
 
 def source_config_from_payload(payload):
@@ -107,6 +168,30 @@ class Version:
 
     def metadata(self) -> str:
         return ''
+
+    def standard(self) -> str:
+        try:
+            root = ET.fromstring(self.__version)
+            for element in root:
+                if element.tag not in TAGS:
+                    root.remove(element)
+            # Sort entries in manifest by element position in TAGS
+            # Default 999 if element not found in TAGS table (comes last)
+            # and name alphabetically
+            sorted_xml = sorted(root, key=lambda x: (
+                TAGS.index(x.tag) if x.tag in TAGS else 999,
+                x.get('name') or ""))
+            manifest = ET.Element('manifest')
+            manifest.extend(sorted_xml)
+            return ET.canonicalize(
+                ET.tostring(manifest),
+                strip_text=True,
+                exclude_attrs=EXCLUDE_ATTRS
+            )
+        except ET.ParseError as e:
+            with redirect_stdout(sys.stderr):
+                print('Version is not valid xml')
+                raise e
 
     def __repr__(self) -> str:
         return self.__version
@@ -154,6 +239,12 @@ class Repo:
 
     def __restore_oldpwd(self):
         os.chdir(self.__oldpwd)
+
+    def __add_remote(self, remote, url):
+        self.__remote[remote] = url
+
+    def __remote_url(self, remote):
+        return self.__remote[remote]
 
     def init(self):
         self.__change_to_workdir()
@@ -211,6 +302,13 @@ class Repo:
         finally:
             self.__restore_oldpwd()
 
+    # Update self.__version after repo sync
+    def update_version(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_manifest = os.path.join(tmpdir, 'manifest_snapshot')
+            self.__manifest_out(tmp_manifest)
+            self.__version = Version.from_file(tmp_manifest)
+
     def save_manifest(self, filename):
         with redirect_stdout(sys.stderr):
             full_path = self.__workdir / filename
@@ -252,5 +350,68 @@ class Repo:
                 ])
         except Exception as e:
             raise (e)
+        finally:
+            self.__restore_oldpwd()
+
+    def update_manifest(self, jobs):
+        projects = []
+
+        jobs = jobs or DEFAULT_CHECK_JOBS
+        self.__change_to_workdir()
+        try:
+            with redirect_stdout(sys.stderr):
+                print('Updating project revisions in manifest')
+                xml = ET.parse('.repo/manifests/'+self.__name)
+                manifest = xml.getroot()
+
+                # Get default values from manifest
+                defaults = manifest.find('default')
+                if defaults is not None:
+                    defaultRemote = defaults.get('remote')
+                    defaultBranch = defaults.get('revision')
+
+                for r in manifest.findall('remote'):
+                    url = r.get('fetch').rstrip('/')
+                    if not re.match("[a-zA-Z]+://", url):
+                        url = re.sub('/[a-z-.]*$', '/', self.__url) + url
+                    self.__add_remote(r.get('name'), url)
+
+                for p in manifest.findall('project'):
+                    project = p.get('name')
+                    projectBranch = p.get('revision') or defaultBranch
+                    projectRemote = p.get('remote') or defaultRemote
+                    projectRemoteUrl = self.__remote_url(projectRemote)
+                    projects.append((projectRemote, projectRemoteUrl,
+                                     project, projectBranch))
+
+                with Pool(jobs) as pool:
+                    revisionList = pool.map(multi_run_wrapper, projects)
+                # Convert (remote/project, revision) tuple list
+                # to hash table dict[remote/project]=revision
+                revisionTable = dict((proj, rev) for proj, rev in revisionList)
+
+                # Update revisions
+                for p in manifest.findall('project'):
+                    project = p.get('name')
+                    projectRemote = p.get('remote') or defaultRemote
+                    p.set('revision', revisionTable[projectRemote+'/'+project])
+
+                self.__version = Version(
+                    ET.canonicalize(
+                        ET.tostring(manifest, encoding='unicode'),
+                        strip_text=True
+                    )
+                )
+
+        except FileNotFoundError as e:
+            with redirect_stdout(sys.stderr):
+                print('cannot open', '.repo/manifests/'+self.__name)
+                raise e
+        except TypeError as e:
+            with redirect_stdout(sys.stderr):
+                print('Error fetching some project repo')
+                raise e
+        except Exception as e:
+            raise e
         finally:
             self.__restore_oldpwd()
