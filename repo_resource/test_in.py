@@ -9,6 +9,7 @@ from io import StringIO
 import shutil
 import unittest
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from . import check
 from . import common
@@ -41,7 +42,7 @@ class TestIn(unittest.TestCase):
         data = self.demo_manifests_source
         data['version'] = {'version': 'invalid-version'}
         instream = StringIO(json.dumps(data))
-        with self.assertRaises(repo.error.GitError):
+        with self.assertRaises(ET.ParseError):
             in_.in_(instream, str(common.CACHEDIR))
 
     def test_dest_dir_is_created(self):
@@ -56,6 +57,30 @@ class TestIn(unittest.TestCase):
 
         self.assertTrue(common.CACHEDIR.exists())
 
+    def test_sync_ok(self):
+        data = {
+            'source': {
+                'url': 'https://android.googlesource.com/tools/manifest',
+                'revision': 'fetch_artifact-dev'
+            },
+        }
+        data['version'] = {
+            'version':
+            '<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n<remote name="aosp" fetch=".." review="https://android-review.googlesource.com/"/>\n<default remote="aosp" revision="master" sync-j="4"/>\n<project name="platform/prebuilts/go/linux-x86" path="prebuilts/go/linux-x86" groups="linux" clone-depth="1"/>\n<project name="tools/fetch_artifact" path="fetch_artifact"/>\n</manifest>'  # noqa: E501
+        }
+        instream = StringIO(json.dumps(data))
+        in_.in_(instream, str(common.CACHEDIR))
+        # no assert/assumption to call. repo init and sync should
+        # just be called. maybe we can check for a file as well
+        readme = common.CACHEDIR / 'fetch_artifact' / 'README.md'
+        self.assertTrue(readme.exists())
+
+    def test_no_manifest_version(self):
+        data = self.demo_manifests_source
+        instream = StringIO(json.dumps(data))
+        with self.assertRaises(KeyError):
+            in_.in_(instream, str(common.CACHEDIR))
+
     def test_valid_in(self):
         data = self.demo_manifests_source
         data['version'] = {
@@ -66,7 +91,10 @@ class TestIn(unittest.TestCase):
         instream = StringIO(json.dumps(data))
         fetched_version = in_.in_(instream, str(common.CACHEDIR))
 
-        self.assertEqual(fetched_version['version'], data['version'])
+        self.assertEqual(
+            common.Version(fetched_version['version']['version']).standard(),
+            common.Version(data['version']['version']).standard()
+        )
 
     def test_get_metadata(self):
         data = self.demo_manifests_source
