@@ -275,7 +275,7 @@ class Repo:
         finally:
             self.__restore_oldpwd()
 
-    def sync(self, version: Version = None, jobs: int = 0):
+    def sync(self, version: Version, jobs: int = 0):
         self.__change_to_workdir()
         try:
             with redirect_stdout(sys.stderr):
@@ -288,15 +288,14 @@ class Repo:
                 if jobs > 0:
                     repo_cmd.append('--jobs={}'.format(jobs))
 
-                if version is None:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    tmp_manifest = os.path.join(tmpdir, 'manifest_tmp')
+                    version.to_file(tmp_manifest)
+                    repo_cmd.append(
+                        '--manifest-name={}'.format(tmp_manifest))
                     repo._Main(repo_cmd)
-                else:
-                    with tempfile.TemporaryDirectory() as tmpdir:
-                        tmp_manifest = os.path.join(tmpdir, 'manifest_tmp')
-                        version.to_file(tmp_manifest)
-                        repo_cmd.append(
-                            '--manifest-name={}'.format(tmp_manifest))
-                        repo._Main(repo_cmd)
+                if os.listdir(self.__workdir) == []:
+                    raise Exception('Sync failed. Is manifest correct?')
         except Exception as e:
             raise (e)
         finally:
@@ -312,17 +311,11 @@ class Repo:
     def save_manifest(self, filename):
         with redirect_stdout(sys.stderr):
             full_path = self.__workdir / filename
-            current_version = self.currentVersion()
             print('Saving manifest to {}'.format(full_path))
-            current_version.to_file(full_path)
+            self.__version.to_file(full_path)
 
     def currentVersion(self) -> Version:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_manifest = os.path.join(tmpdir, 'manifest_snapshot')
-            self.__manifest_out(tmp_manifest)
-            version = Version.from_file(tmp_manifest)
-
-        return version
+        return self.__version
 
     def metadata(self):
         metadata = []
