@@ -38,6 +38,13 @@ class TestCheck(unittest.TestCase):
                 'name': 'aosp_device_fixed.xml'
             }
         }
+        self.default_rev_in_remote = {
+            'source': {
+                'url': 'https://github.com/makohoek/demo-manifests.git',
+                'revision': 'main',
+                'name': 'default_rev_in_remote.xml'
+            }
+        }
         self.demo_ssh_manifests_source = {
             'source': {
                 'url': 'https://github.com/makohoek/demo-manifests.git',
@@ -99,6 +106,11 @@ class TestCheck(unittest.TestCase):
         instream = StringIO(json.dumps(unknown_manifest_data))
         with self.assertRaises(SystemExit):
             check.check(instream)
+
+    def test_default_rev_in_remote(self):
+        data = self.default_rev_in_remote
+        instream = StringIO(json.dumps(data))
+        check.check(instream)
 
     def test_branch_defaults_to_HEAD(self):
         no_revision_data = self.demo_manifests_source_norev
