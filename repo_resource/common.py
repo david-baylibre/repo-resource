@@ -219,6 +219,7 @@ class Repo:
         self.__depth = depth
         self.__version: Version = None
         self.__remote_url = {}
+        self.__remote_revision = {}
         workdir.mkdir(parents=True, exist_ok=True)
 
         # gitrepo from https://github.com/grouperenault/gitrepo
@@ -243,9 +244,14 @@ class Repo:
     def __add_remote_url(self, remote, url):
         self.__remote_url[remote] = url
 
+    def __add_remote_revision(self, remote, rev):
+        self.__remote_revision[remote] = rev
 
     def __get_remote_url(self, remote):
         return self.__remote_url[remote]
+
+    def __get_remote_revision(self, remote):
+        return self.__remote_revision[remote]
 
     def init(self):
         self.__change_to_workdir()
@@ -358,17 +364,20 @@ class Repo:
                 xml = ET.parse('.repo/manifests/'+self.__name)
                 manifest = xml.getroot()
 
-                # Get default values from manifest
-                defaults = manifest.find('default')
-                if defaults is not None:
-                    defaultRemote = defaults.get('remote')
-                    defaultBranch = defaults.get('revision')
-
                 for r in manifest.findall('remote'):
                     url = r.get('fetch').rstrip('/')
                     if not re.match("[a-zA-Z]+://", url):
                         url = re.sub('/[a-z-.]*$', '/', self.__url) + url
                     self.__add_remote_url(r.get('name'), url)
+                    if (rev := r.get('revision')) is not None:
+                        self.__add_remote_revision(r.get('name'), rev)
+
+                # Get default values from manifest
+                defaults = manifest.find('default')
+                if defaults is not None:
+                    defaultRemote = defaults.get('remote')
+                    defaultBranch = defaults.get('revision') \
+                        or self.__get_remote_revision(defaultRemote)
 
                 for p in manifest.findall('project'):
                     project = p.get('name')
