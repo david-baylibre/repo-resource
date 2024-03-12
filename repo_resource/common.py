@@ -218,7 +218,7 @@ class Repo:
         self.__name = name
         self.__depth = depth
         self.__version: Version = None
-        self.__remote = {}
+        self.__remote_url = {}
         workdir.mkdir(parents=True, exist_ok=True)
 
         # gitrepo from https://github.com/grouperenault/gitrepo
@@ -240,11 +240,12 @@ class Repo:
     def __restore_oldpwd(self):
         os.chdir(self.__oldpwd)
 
-    def __add_remote(self, remote, url):
-        self.__remote[remote] = url
+    def __add_remote_url(self, remote, url):
+        self.__remote_url[remote] = url
 
-    def __remote_url(self, remote):
-        return self.__remote[remote]
+
+    def __get_remote_url(self, remote):
+        return self.__remote_url[remote]
 
     def init(self):
         self.__change_to_workdir()
@@ -367,13 +368,13 @@ class Repo:
                     url = r.get('fetch').rstrip('/')
                     if not re.match("[a-zA-Z]+://", url):
                         url = re.sub('/[a-z-.]*$', '/', self.__url) + url
-                    self.__add_remote(r.get('name'), url)
+                    self.__add_remote_url(r.get('name'), url)
 
                 for p in manifest.findall('project'):
                     project = p.get('name')
                     projectBranch = p.get('revision') or defaultBranch
                     projectRemote = p.get('remote') or defaultRemote
-                    projectRemoteUrl = self.__remote_url(projectRemote)
+                    projectRemoteUrl = self.__get_remote_url(projectRemote)
                     projects.append((projectRemote, projectRemoteUrl,
                                      project, projectBranch))
 
