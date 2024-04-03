@@ -296,6 +296,7 @@ class Repo:
                 print('Downloading manifest from {}'.format(self.__url))
                 repo._Main(repo_cmd)
                 print('repo has been initialized in {}'.format(self.__workdir))
+            return self
 
         except Exception as e:
             raise (e)
@@ -323,6 +324,7 @@ class Repo:
                     repo._Main(repo_cmd)
                 if os.listdir(self.__workdir) == []:
                     raise Exception('Sync failed. Is manifest correct?')
+            return self
         except Exception as e:
             raise (e)
         finally:
@@ -340,6 +342,7 @@ class Repo:
             full_path = self.__workdir / filename
             print('Saving manifest to {}'.format(full_path))
             self.__version.to_file(full_path)
+        return self
 
     def currentVersion(self) -> Version:
         return self.__version
@@ -444,6 +447,7 @@ class Repo:
                         strip_text=True
                     )
                 )
+            return self
 
         except FileNotFoundError as e:
             with redirect_stdout(sys.stderr):
