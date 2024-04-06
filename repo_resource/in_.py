@@ -46,7 +46,8 @@ def in_(instream, dest_dir='.'):
     try:
         repo = common.Repo(config.url, config.revision,
                            config.name, config.depth, workdir=Path(dest_dir))
-        repo.init()
+        repo.set_rewrite(config.rewrite) \
+            .init()
         repo.sync(requested_version, config.jobs)
         repo.update_version()
     except Exception as e:
