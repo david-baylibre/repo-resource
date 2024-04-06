@@ -48,7 +48,8 @@ def check(instream) -> list:
                            config.revision,
                            config.name,
                            config.depth)
-        repo.init()
+        repo.set_insteadOf(config.insteadOf) \
+            .init()
         repo.update_manifest(jobs=check_jobs)
         version = repo.currentVersion()
     except Exception as e:
