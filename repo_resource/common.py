@@ -129,6 +129,7 @@ class SourceConfiguration(NamedTuple):
     depth: int = -1
     jobs: int = 0
     check_jobs: int = DEFAULT_CHECK_JOBS
+    rewrite: str = None
 
 
 def source_config_from_payload(payload):
@@ -252,6 +253,25 @@ class Repo:
 
     def __get_remote_revision(self, remote):
         return self.__remote_revision[remote]
+
+    def set_rewrite(self, matrix: dict = None):
+        if matrix is None:
+            return self
+
+        with redirect_stdout(sys.stderr), \
+                tempfile.TemporaryDirectory() as tempdir:
+            gitrepo = git.Repo.init(tempdir)
+            print("Applying rewrite rules")
+            for from_url, to_url in matrix.items():
+                print('{} -> {}'.format(from_url, to_url))
+                gitrepo \
+                    .config_writer(config_level='global') \
+                    .set_value(
+                        'url "{}"'.format(to_url),
+                        "insteadOf", from_url
+                    ) \
+                    .release()
+        return self
 
     def init(self):
         self.__change_to_workdir()
