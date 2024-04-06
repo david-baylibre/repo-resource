@@ -129,6 +129,7 @@ class SourceConfiguration(NamedTuple):
     depth: int = -1
     jobs: int = 0
     check_jobs: int = DEFAULT_CHECK_JOBS
+    insteadOf: str = None
 
 
 def source_config_from_payload(payload):
@@ -252,6 +253,24 @@ class Repo:
 
     def __get_remote_revision(self, remote):
         return self.__remote_revision[remote]
+
+    def set_insteadOf(self, matrix: dict = None):
+        with redirect_stdout(sys.stderr):
+            if matrix is not None:
+                tempdir = tempfile.TemporaryDirectory(delete=False)
+                gitrepo = git.Repo.init(tempdir.name)
+                print("Applying insteadOf rules")
+                for to_url, from_url in matrix.items():
+                    print('{} -> {}'.format(from_url, to_url))
+                    gitrepo \
+                        .config_writer(config_level='global') \
+                        .set_value(
+                            'url "{}"'.format(to_url),
+                            "insteadOf", from_url
+                        ) \
+                        .release()
+                tempdir.cleanup()
+        return self
 
     def init(self):
         self.__change_to_workdir()
