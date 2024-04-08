@@ -32,6 +32,18 @@ class TestCheck(unittest.TestCase):
                 'name': 'aosp_device_fixed.xml'
             }
         }
+        self.demo_manifests_to_rewrite_source = {
+            'source': {
+                'url':
+                'https://unreachable-github.com/makohoek/demo-manifests.git',
+                'revision': 'main',
+                'name': 'aosp_device_fixed.xml',
+                'rewrite': {
+                    'https://unreachable-github.com':
+                    'https://github.com'
+                },
+            },
+        }
         self.demo_manifests_source_norev = {
             'source': {
                 'url': 'https://github.com/makohoek/demo-manifests.git',
@@ -98,6 +110,11 @@ class TestCheck(unittest.TestCase):
         instream = StringIO(json.dumps(unreachable_data))
         with self.assertRaises(repo.error.GitError):
             check.check(instream)
+
+    def test_rewrite_manifest(self):
+        rewrite_url_data = self.demo_manifests_to_rewrite_source
+        instream = StringIO(json.dumps(rewrite_url_data))
+        check.check(instream)
 
     def test_unknown_revision(self):
         unknown_revision_data = self.aosp_platform_source
