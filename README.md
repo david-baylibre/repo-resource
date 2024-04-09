@@ -30,6 +30,16 @@ Track changes in a [repo](https://gerrit.googlesource.com/git-repo/+/master/#rep
 * `jobs`: *Optional.* number of jobs to run in parallel (default: 0; based on number of CPU cores)
    Reduce this if you observe network errors.
 
+* `rewrite`: *Optional.* Any URL that starts with this value will be rewritten with the give value.
+   Similar to git url insteadOf option.
+    Example: rewrite http(s):// to git://
+
+    ```yaml
+    rewrite:
+      "http://": "git://"
+      "https://": "git://"
+    ```
+
 * `check_jobs`: for check step only: number of jobs to run in parallel (default: jobs\*2,
   2 if jobs is undefined).
 
