@@ -108,14 +108,14 @@ Use `make test` for running the unit(integration) tests:
 make test
 ```
 
-If you wish to run a single test, just edit the `Dockerfile.development`:
+If you wish to run a single test, just edit the `Dockerfile`:
 
 ```diff
-diff --git a/Dockerfile.development b/Dockerfile.development
-index 81fbb349c014..431f07b59917 100644
---- a/Dockerfile.development
-+++ b/Dockerfile.development
-@@ -4,4 +4,4 @@ FROM repo-resource:latest
+diff --git a/Dockerfile b/Dockerfile
+index f02c512..031008e 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -28,6 +28,6 @@ FROM repo-resource AS tests
  COPY repo_resource /root/repo_resource
  COPY development/ssh/ /root/development/ssh/
  WORKDIR /root/

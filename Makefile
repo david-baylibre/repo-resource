@@ -10,7 +10,8 @@ docker:
 		--tag "$(DOCKER_NAME):latest"
 
 dev-docker: docker
-	docker build . -f Dockerfile.development \
+	docker build . -f Dockerfile \
+		--target tests \
 		--tag "$(DOCKER_DEV_NAME):latest"
 
 test: dev-docker
