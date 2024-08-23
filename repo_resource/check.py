@@ -48,10 +48,11 @@ def check(instream) -> list:
                            config.revision,
                            config.name,
                            config.depth)
-        repo.set_rewrite(config.rewrite) \
-            .init()
-        repo.update_manifest(jobs=check_jobs)
-        version = repo.currentVersion()
+        version = repo \
+            .set_rewrite(config.rewrite) \
+            .init() \
+            .update_manifest(jobs=check_jobs) \
+            .currentVersion()
     except Exception as e:
         raise e
     finally:
