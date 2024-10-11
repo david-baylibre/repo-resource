@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import urlparse
 from multiprocessing import Pool
+from retrying import retry
 
 import ssh_agent_setup
 from repo import manifest_xml
@@ -28,6 +29,8 @@ from repo import main as repo
 
 
 DEFAULT_CHECK_JOBS = 2
+GIT_LS_REMOTE_MAX_RETRIES = 3
+GIT_LS_REMOTE_WAIT = 2000  # 2s
 CACHEDIR = Path('/tmp/repo-resource-cache')
 SHA1_PATTERN = re.compile(r'^[0-9a-f]{40}$')
 EXCLUDE_ATTRS = {'dest-branch', 'upstream'}
@@ -88,51 +91,61 @@ def multi_run_wrapper(args):
     return getRevision(*args)
 
 
+def retry_getRevision(exception):
+    """Return True if we should retry, raise exception otherwise"""
+    with redirect_stdout(sys.stderr):
+        print(exception)
+        if "HTTP 429" not in str(exception).upper():
+            raise str(exception)
+        print('git ls-remote: sleeping {:.1f} seconds before retrying'.format(
+            GIT_LS_REMOTE_WAIT // 1000)
+        )
+        return True
+
+
+@retry(retry_on_exception=retry_getRevision,
+       stop_max_attempt_number=GIT_LS_REMOTE_MAX_RETRIES,
+       wait_fixed=GIT_LS_REMOTE_WAIT)
 def getRevision(remote, remoteUrl, project, branch):
     """
     Get latest commit sha1 for revision
     with git ls-remote command for each project
     without downloading the whole repo
     """
-    try:
-        with redirect_stdout(sys.stderr):
-            # return tuple (remote/project, branch, revision)
-            print('Fetching revision for {}/{} - {}...'.format(
-                remote, project, branch))
-            if is_sha1(branch):
-                return (remote + '/' + project, branch, branch)
-            g = git.cmd.Git()
+    with redirect_stdout(sys.stderr):
+        # return tuple (remote/project, branch, revision)
+        print('Fetching revision for {}/{} - {}...'.format(
+            remote, project, branch))
+        if is_sha1(branch):
+            return (remote + '/' + project, branch, branch)
+        g = git.cmd.Git()
 
-            headRef = branch
-            # v1.0^{} is the commit referring to tag v1.0
-            # git ls-remote returns the tag sha1 if left as is
-            if branch.startswith('refs/tags'):
-                headRef += '^{}'
+        headRef = branch
+        # v1.0^{} is the commit referring to tag v1.0
+        # git ls-remote returns the tag sha1 if left as is
+        if branch.startswith('refs/tags'):
+            headRef += '^{}'
 
-            url, revList = (
-                remote + '/' + project,
-                g.ls_remote(remoteUrl+'/'+project, headRef).split()
-            )
+        url, revList = (
+            remote + '/' + project,
+            g.ls_remote(remoteUrl+'/'+project, headRef).split()
+        )
 
-            # convert revision list to revision dict:
-            # ['SHA1', 'refs/heads/XXXX', 'SHA1', 'refs/heads/YYYY']
-            # -> {'refs/heads/XXXX': 'SHA1', 'refs/heads/YYYY': 'SHA1'}
-            revDict = dict([(b, a)
-                            for a, b in zip(revList[::2], revList[1::2])])
+        # convert revision list to revision dict:
+        # ['SHA1', 'refs/heads/XXXX', 'SHA1', 'refs/heads/YYYY']
+        # -> {'refs/heads/XXXX': 'SHA1', 'refs/heads/YYYY': 'SHA1'}
+        revDict = dict([(b, a)
+                        for a, b in zip(revList[::2], revList[1::2])])
 
-            if branch.startswith('refs/tags'):
-                rev = headRef
-            else:
-                rev = 'refs/heads/' + branch
+        if branch.startswith('refs/tags'):
+            rev = headRef
+        else:
+            rev = 'refs/heads/' + branch
 
-            print('{} - {}: {}'.format(url, branch, revDict[rev]))
+        print('{} - {}: {}'.format(url, branch, revDict[rev]))
 
-            # return url, branch (without any suffix) and revision
-            return (url, branch, revDict[rev])
-    except Exception as e:
-        with redirect_stdout(sys.stderr):
-            print('Cannot fetch project {}/{}'.format(remoteUrl, project))
-            print(e)
+        # return url, branch (without any suffix) and revision
+        return (url, branch, revDict[rev])
 
 
 class SourceConfiguration(NamedTuple):
